@@ -1,0 +1,6 @@
+name: Video Encoder
+description: Encodes the video by FFMPEG
+package: FENS
+type: module
+version: 1.0
+core: 8.x

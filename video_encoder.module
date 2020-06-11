@@ -1,0 +1,75 @@
+<?php
+
+/**
+ * @file
+ * Contains video_encoder.module.
+ */
+
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use \Drupal\file\Entity\File;
+
+
+
+
+/**
+ * Implements hook_ENTITY_TYPE_presave().
+ */
+function video_encoder_node_presave(Drupal\Core\Entity\EntityInterface $entity) {
+
+  // modify only video type
+  if($entity->bundle() == "videos"){
+    // Path to keep videos
+    $encoded_video_path = "/sites/default/files/encoded/";
+
+    $fid= $entity->get('field_videos')->target_id;
+
+
+    //get file storage
+    $file_storage = \Drupal::entityTypeManager()->getStorage('file');
+    $file = $file_storage->load($fid);
+
+    $stream_wrapper_manager = \Drupal::service('stream_wrapper_manager')->getViaUri($file->getFileUri());
+    $file_real_path =  $stream_wrapper_manager->realpath();
+
+    //$file_real_path =  urldecode(substr(file_url_transform_relative(file_create_url($file->getFileUri())),1));
+
+    //echo ("ffmpeg -i ". $file_real_path2 . " -acodec aac -strict experimental -ac 2 -ab 128k -vcodec libx264 -f mp4 -crf 22 -s 1280x768 sites/mdbf-tv.dd/files/encoded/". $file->filename->value);
+    //$result = passthru("ffmpeg -i ". $file_real_path2 . " -acodec aac -strict experimental -ac 2 -ab 128k -vcodec libx264 -f mp4 -crf 22 -s 1280x768 sites/mdbf-tv.dd/files/encoded/". $file->filename->value);
+    //var_dump($result);
+
+
+    $ffmpeg = Drupal::service('php_ffmpeg');
+    $ffprobe = Drupal::service('php_ffmpeg_probe');
+    $video = $ffmpeg->open($file_real_path);
+    $format = new FFMpeg\Format\Video\X264();
+    
+    $format->setAdditionalParameters(['-vprofile', 'baseline', '-level', 3.0]);
+
+
+
+    $format->setAudioCodec("libmp3lame");
+    $video
+    ->filters()
+    ->resize(new FFMpeg\Coordinate\Dimension(900, 720))
+    ->synchronize();
+
+    $format
+    ->setKiloBitrate(800);
+    // ffmpeg wants without / in the beginning of the path
+    $video
+    ->save($format, substr($encoded_video_path,1). substr($file->filename->value,0,-4).".mp4"  );
+   // \Drupal::logger('video_encoder')->notice($file);
+
+    
+    // save path to entity
+    $entity->set('field_encoded_video',  $encoded_video_path. substr($file->filename->value,0,-4).".mp4");
+
+    return $entity;
+}
+
+
+}
+
+
